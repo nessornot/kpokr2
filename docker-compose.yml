@@ -1,0 +1,82 @@
+services:
+  db_file_storing:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: file_storing
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: file_storing_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "file_storing", "-d", "file_storing_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  db_file_analysis:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: file_analysis
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: file_analysis_db
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata2:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "file_analysis", "-d", "file_analysis_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  file_storing:
+    build: ./file_storing
+    ports:
+      - "8081:8080"
+    depends_on:
+      db_file_storing:
+        condition: service_healthy
+    environment:
+      DB_HOST: db_file_storing
+      DB_PORT: 5432
+      DB_USER: file_storing
+      DB_PASSWORD: pass
+      DB_NAME: file_storing_db
+    volumes:
+      - storage:/app/storage
+
+  file_analysis:
+    build: ./file_analysis
+    ports:
+      - "8082:8081"
+    depends_on:
+      db_file_analysis:
+        condition: service_healthy
+    environment:
+      DB_HOST: db_file_analysis
+      DB_PORT: 5432
+      DB_USER: file_analysis
+      DB_PASSWORD: pass
+      DB_NAME: file_analysis_db
+
+  api_gateway:
+    build: ./api_gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - file_storing
+      - file_analysis
+    volumes:
+      - storage:/app/storage
+
+volumes:
+  pgdata:
+  pgdata2:
+  storage:
+    driver: local
+    driver_opts:
+      type: none
+      device: ${PWD}/storage
+      o: bind
